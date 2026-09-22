@@ -1,0 +1,14 @@
+.venv
+__pycache__
+*.pyc
+.env
+.git
+.gitignore
+
+# Not needed at runtime
+data
+notebooks
+tests
+results
+models/transformer
+models/transformer_checkpoints

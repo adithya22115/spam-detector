@@ -1,0 +1,8 @@
+# Optional dependencies for notebook 04 (transformer fine-tuning).
+# On machines without a GPU, install CPU-only torch first to avoid the large
+# CUDA wheel:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+# then: pip install -r requirements-transformers.txt
+torch
+transformers
+accelerate

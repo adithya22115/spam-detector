@@ -1,0 +1,8 @@
+{
+  "model": "distilbert-base-uncased",
+  "accuracy": 0.95,
+  "f1_spam": 0.9455,
+  "roc_auc": 0.9801,
+  "brier": 0.0442,
+  "num_train_epochs": 1
+}

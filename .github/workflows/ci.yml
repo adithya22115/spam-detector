@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run test suite
+        run: python -m unittest discover tests -v
+
+      # Datasets (data/raw/*.csv) and the trained model (models/*.pkl) are
+      # gitignored, so the model-quality and API prediction tests skip here.
+      # They run locally once src/train.py has produced models/spam_model.pkl.
+      - name: Run model verification (skips without a trained model)
+        run: python tools/verify_model.py

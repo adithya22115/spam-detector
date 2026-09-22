@@ -1,0 +1,20 @@
+{
+  "model": "calibrated Linear SVM (word + char TF-IDF)",
+  "dataset": "all",
+  "accuracy": 0.9813,
+  "f1_spam": 0.9794,
+  "roc_auc": 0.9983,
+  "brier": 0.0144,
+  "per_source": {
+    "email": {
+      "accuracy": 0.9846,
+      "f1_spam": 0.9848,
+      "support": 6762
+    },
+    "sms": {
+      "accuracy": 0.9608,
+      "f1_spam": 0.8502,
+      "support": 1096
+    }
+  }
+}

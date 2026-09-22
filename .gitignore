@@ -1,0 +1,17 @@
+# Environment variables (may contain secrets)
+.env
+
+# Datasets and generated artifacts
+data/raw/*.csv
+data/processed/*.csv
+models/*.pkl
+models/transformer/
+models/transformer_checkpoints/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/

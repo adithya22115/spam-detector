@@ -1,0 +1,8 @@
+{
+  "model": "Linear SVM",
+  "calibrated": true,
+  "accuracy": 0.9706,
+  "f1_spam": 0.9676,
+  "roc_auc": 0.9962,
+  "brier": 0.0225
+}

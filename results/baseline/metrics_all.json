@@ -1,0 +1,8 @@
+{
+  "model": "calibrated Linear SVM (word + char TF-IDF)",
+  "dataset": "all",
+  "accuracy": 0.981,
+  "f1_spam": 0.9791,
+  "roc_auc": 0.9983,
+  "brier": 0.0144
+}
