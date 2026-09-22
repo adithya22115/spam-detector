@@ -28,6 +28,14 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split
 
+# Windows consoles default to cp1252, which cannot encode the full-width
+# look-alike battery cases; force UTF-8 so the tool runs everywhere.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except AttributeError:  # pragma: no cover - very old Python
+    pass
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 

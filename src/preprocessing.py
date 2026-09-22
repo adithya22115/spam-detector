@@ -28,6 +28,11 @@ LEETSPEAK_MAP = {
     "$": "s",
 }
 
+# Numbers are replaced with this token instead of being deleted, so numeric
+# cues survive (a prize amount, a premium-rate number, an order id). One generic
+# token lets the model learn "a number appeared here" without memorising values.
+NUMBER_PLACEHOLDER = "num"
+
 _TOKEN_RE = re.compile(r"[a-z0-9@$]+")
 _HAS_LETTER_RE = re.compile(r"[a-z]")
 _HAS_LEET_RE = re.compile(r"[0-9@$]")
@@ -57,10 +62,12 @@ def _decode_leet_token(token: str) -> str:
 
 
 def clean_text(text: str) -> str:
-    """Normalize, lowercase, decode leetspeak, strip URLs/numbers/punctuation.
+    """Normalize, lowercase, decode leetspeak, strip URLs/punctuation.
 
     NFKC normalization comes first so full-width and other compatibility
     look-alikes ("ＦＲＥＥ") fold onto their ASCII forms before tokenizing.
+    Numbers are not discarded: each run of digits becomes NUMBER_PLACEHOLDER
+    ("num"), so a prize amount or premium-rate number still leaves a feature.
     """
     if not isinstance(text, str):
         raise TypeError(f"clean_text expects a str, got {type(text).__name__}")
@@ -68,7 +75,7 @@ def clean_text(text: str) -> str:
     text = text.lower()
     text = re.sub(r"http\S+|www\.\S+", " ", text)  # URLs
     text = _TOKEN_RE.sub(lambda match: _decode_leet_token(match.group(0)), text)  # leetspeak
-    text = re.sub(r"\d+", " ", text)  # remaining numbers
+    text = re.sub(r"\d+", f" {NUMBER_PLACEHOLDER} ", text)  # remaining numbers
     text = re.sub(r"[^\w\s]", " ", text)  # punctuation
     return re.sub(r"\s+", " ", text).strip()
 

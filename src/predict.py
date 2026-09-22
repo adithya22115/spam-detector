@@ -9,7 +9,7 @@ from pathlib import Path
 
 import joblib
 
-from preprocessing import clean_text
+from preprocessing import NUMBER_PLACEHOLDER, clean_text
 
 MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
 
@@ -22,6 +22,7 @@ TOP_FEATURES = 5
 MIN_CONTENT_CHARS = 2
 
 _CONTENT_RE = re.compile(r"\W")
+_NUMBER_PLACEHOLDER_RE = re.compile(rf"\b{re.escape(NUMBER_PLACEHOLDER)}\b")
 
 # Lightweight content cues used to describe a message in plain language.
 _URL_RE = re.compile(r"(https?://|www\.)", re.IGNORECASE)
@@ -117,8 +118,14 @@ def load_model(path: Path = MODELS_DIR / "spam_model.pkl"):
 
 
 def _content_length(cleaned_text: str) -> int:
-    """Count the alphanumeric characters remaining after cleaning."""
-    return len(_CONTENT_RE.sub("", cleaned_text))
+    """Count alphanumeric characters, ignoring placeholder number tokens.
+
+    Numbers become a placeholder rather than being deleted, so a digits-only
+    message would otherwise look like it had real content. Excluding the
+    placeholder keeps the short-input guard from classifying meaningless input.
+    """
+    without_numbers = _NUMBER_PLACEHOLDER_RE.sub(" ", cleaned_text)
+    return len(_CONTENT_RE.sub("", without_numbers))
 
 
 def _confidence_label(spam_probability: float) -> str:

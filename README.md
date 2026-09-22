@@ -1,7 +1,8 @@
 # SMS / Email Spam Detection
 
 Detect spam in SMS and email messages using machine learning: word + char
-TF-IDF features feeding a probability-calibrated Linear SVM.
+TF-IDF features feeding a probability-calibrated Linear SVM, with source-aware
+sample weighting so SMS is not drowned out by the larger email corpus.
 
 ## Project Structure
 
@@ -33,6 +34,7 @@ SMS-EMAIL-SPAM-DETECTION
 ├── requirements.txt
 ├── requirements-transformers.txt  # Optional: for notebook 04
 ├── Dockerfile       # Containerize the API
+├── render.yaml      # Render deployment blueprint
 └── README.md
 ```
 
@@ -69,7 +71,14 @@ To skip the venv, `pip install -r requirements.txt` with your system Python also
    python src/train.py --dataset sms       # train on SMS only
    python src/train.py --dataset email     # train on email only
    python src/train.py --data path/to.csv  # train on a custom CSV
+   python src/train.py --sms-strategy source_weights   # shipped config (lifts SMS recall)
    ```
+
+   `--sms-strategy` is `none` (baseline), `class_weight` (balanced ham/spam
+   weights) or `source_weights` (weight SMS rows so both sources contribute
+   equally — the shipped choice). Add `--tag <name>` to write
+   `models/spam_model_<name>.pkl` and `results/*_<name>.*` so an experiment
+   cannot overwrite the shipped artifacts.
 2. **Predict:**
    ```bash
    python src/predict.py "Congratulations! You've won a free iPhone. Click here to claim."
@@ -94,10 +103,13 @@ time. Order matters:
 1. **NFKC normalize** — folds full-width look-alikes onto ASCII, so `ＦＲＥＥ` → `FREE`.
 2. **Lowercase.**
 3. **Strip URLs.**
-4. **Decode leetspeak inside mixed tokens** — `fr33` → `free`, `cl1ck` → `click`,
-   `m0ney` → `money`. Only tokens mixing letters *and* leet characters are rewritten,
-   so standalone numbers (`1800`, `12345`) are left alone and later removed.
-5. **Strip remaining digits, then punctuation, then collapse whitespace.**
+4. **Decode leetspeak inside mixed tokens** — `fr33` → `free`, `cl1ck` → `click`,`m0ney` → `money`. Only tokens mixing letters *and* leet characters are rewritten,
+so standalone numbers (`1800`, `12345`) are left alone and later replaced by the
+`num` placeholder (step 5).
+5. **Replace every remaining run of digits with the placeholder token `num`, then
+   strip punctuation and collapse whitespace.** Numbers are kept as a generic cue
+   rather than deleted, so a prize amount, premium-rate number or order id still
+   registers: the model learns "a number appeared here" without memorising values.
 
 Step 4 is why obfuscated spam is caught. Digits used to be deleted outright, which
 *destroyed* the obfuscation instead of normalising it (`fr33` became `fr`), and
@@ -107,7 +119,7 @@ leetspeak spam slipped through.
 
 | Method | Path       | Description                    |
 | ------ | ---------- | ------------------------------ |
-| GET    | `/`        | Web UI                         |
+| GET    | `/`        | Web UI (shows a sentence description) |
 | GET    | `/health`  | `{"status": "ok"}`             |
 | POST   | `/predict` | Classify one message           |
 
@@ -120,9 +132,15 @@ leetspeak spam slipped through.
   "spam_probability": 0.98,
   "confidence": "high",
   "insufficient_text": false,
-  "top_features": [{"word": "free", "weight": 1.23, "direction": "spam"}]
+  "top_features": [{"word": "free", "weight": 1.23, "direction": "spam"}],
+  "description": "Looks like spam (98.0% spam, high confidence). The message uses pressure wording such as 'free', matching the kind of unsolicited, promotional or prize-style wording the model flags as unwanted."
 }
 ```
+
+`description` is a plain-language sentence summarising the verdict and the
+cues found in the message (links, money mentions, all-caps, pressure wording).
+The web UI shows this sentence under the verdict **instead of** a keyword list;
+`top_features` is still returned for programmatic use and is unchanged.
 
 Every error is JSON (never an HTML error page):
 
@@ -141,10 +159,11 @@ Configuration is read from the environment (see `.env.example`): `FLASK_HOST`,
 ### Short input
 
 Messages with fewer than `MIN_CONTENT_CHARS` alphanumeric characters after cleaning
-(`""`, `"a"`, `"!!!"`, `"12345"`) carry no signal — for those the vectorizer produces
-an empty feature row and the model returns its base rate. Rather than dressing that
-up as a prediction, `predict()` sets `insufficient_text: true`, forces
-`is_spam: false`, and reports `confidence: "low"`; the API returns 400.
+(`""`, `"a"`, `"!!!"`) carry no signal. Because numbers are now normalised to the
+`num` placeholder, a digits-only message such as `"12345"` is not empty after
+cleaning, so the guard counts placeholder tokens as zero content to keep refusing it.
+For such input `predict()` sets `insufficient_text: true`, forces `is_spam: false`,
+and reports `confidence: "low"`; the API returns 400.
 
 ## Transformer model (notebook 04)
 
@@ -155,6 +174,20 @@ pip install -r requirements-transformers.txt   # CPU-only torch: see file header
 ```
 
 Then run `notebooks/04_transformer_model.ipynb`. Results land in `results/`.
+
+## Deploy on Render
+
+A `render.yaml` blueprint is included:
+
+1. Push this repository to GitHub.
+2. In Render choose **New → Blueprint** and select the repo.
+3. Render installs `requirements.txt`, starts
+   `gunicorn --bind 0.0.0.0:$PORT app.app:app`, and health-checks `/health`.
+
+`models/spam_model.pkl` must be in the repo — the `.gitignore` keeps it tracked —
+because the API loads it at startup; without it `/predict` returns 500. Override
+`MODEL_PATH` in the Render dashboard only if you rename the artifact. Render injects
+`PORT`, which the app reads before falling back to `FLASK_PORT` for local runs.
 
 ## Docker
 
@@ -175,32 +208,38 @@ The image bundles the trained model, so it serves `/predict` out of the box.
 
 | Metric    | Value  |
 | --------- | ------ |
-| accuracy  | 0.9813 |
-| spam F1   | 0.9794 |
+| accuracy  | 0.9822 |
+| spam F1   | 0.9804 |
 | ROC-AUC   | 0.9983 |
-| Brier     | 0.0144 |
+| Brier     | 0.0139 |
 
 **Per source — read this before quoting the 98%:**
 
 | Source | n     | Accuracy | Spam F1 |
 | ------ | ----- | -------- | ------- |
-| email  | 6,762 | 0.9846   | 0.9848  |
-| sms    | 1,096 | 0.9608   | 0.8502  |
+| email  | 6,762 | 0.9836   | 0.9838  |
+| sms    | 1,096 | 0.9735   | 0.8968  |
 
-The aggregate is dominated by email (86% of the test set). **SMS spam detection is
-~13 F1 points weaker** than email, so the headline number overstates SMS
-performance. Both are reported here deliberately.
+The aggregate is dominated by email (86% of the test set). Source-weighted training
+shrank the SMS gap from ~13 to ~9 F1 points (0.850 → 0.897), but **SMS spam detection
+is still the weaker half**, so the headline number overstates SMS performance. Both
+are reported here deliberately.
 
 **Model comparison:**
 
 | Model                                | Accuracy | Spam F1 | ROC-AUC | Brier  |
 | ------------------------------------ | -------- | ------- | ------- | ------ |
-| Calibrated Linear SVM (word + char)  | 0.9813   | 0.9794  | 0.9983  | 0.0144 |
+| Calibrated Linear SVM (word + char)  | 0.9822   | 0.9804  | 0.9983  | 0.0139 |
 | Linear SVM (word-only, pre-tuning)   | 0.9706   | 0.9676  | 0.9962  | 0.0225 |
 | distilBERT (notebook 04, 1 epoch)    | 0.9500   | 0.9455  | 0.9801  | 0.0442 |
 
+Both SMS-recall strategies were trained and compared on the same split.
+`class_weight="balanced"` reached SMS F1 **0.854** (accuracy 0.9824), while
+source-aware sample weighting reached SMS F1 **0.897** (accuracy 0.9822). The latter
+is shipped: SMS is the weak half and its ~4.7-point gain cost only ~0.02pp overall.
+
 Probability calibration matters here: the raw word-only SVM had a Brier of 0.0225,
-and `CalibratedClassifierCV` + `FrozenEstimator` brings it to 0.0144, which is what
+and `CalibratedClassifierCV` + `FrozenEstimator` brings it to 0.0139, which is what
 makes the `confidence` labels in `src/predict.py` meaningful.
 
 ### Reproducing these numbers
@@ -215,7 +254,8 @@ the result against `results/metrics_all.json`, and runs an adversarial battery
 (`random_state=42`), so retraining reproduces the table above exactly.
 
 `results/baseline/` and `models/spam_model_baseline.pkl` keep the pre-leetspeak
-model for comparison.
+model for comparison. `models/spam_model_v1.pkl` is the previous shipped model
+(before source weighting, SMS F1 0.850), kept locally as a rollback.
 
 ## Limitations
 
@@ -223,10 +263,8 @@ Known and deliberate, rather than undiscovered:
 
 - **SMS is much weaker than email** (F1 0.85 vs 0.98). Email supplies 86% of the
   training rows, so SMS spam patterns are under-represented.
-- **Numeric cues are discarded.** All digits are stripped, so a message whose only
-  spam signal is a prize amount (`"C0NGRATULATIONS! U h4ve w0n $1000000"` → cleaned
-  to `congratulations u have won`) can be missed. It is the one case the verification
-  battery still fails.
+- **Numbers collapse to a single `num` token.** The model learns that *a* number
+  appeared, not which one, so it cannot tell a $10 offer from a $1,000,000 one.
 - **English-only.** Non-Latin scripts are not supported, and combining marks are
   dropped (`नमस्ते` → `नमस त`) because punctuation stripping removes category-Mn
   characters. Preserving them was measured and made the model slightly worse
@@ -235,8 +273,8 @@ Known and deliberate, rather than undiscovered:
 - **Homoglyph evasion beyond NFKC is not covered** — `ＦＲＥＥ` is handled, a Cyrillic
   `а` standing in for a Latin `a` is not.
 - **Very short messages are refused, not classified** (see "Short input" above).
-- **The Flask app uses the development server**; put it behind a real WSGI server
-  for anything public.
+- **Local runs use the Flask development server** (`python app/app.py`); the Docker
+  image and Render blueprint start the app under gunicorn instead.
 
 ## Roadmap
 
@@ -254,5 +292,5 @@ Known and deliberate, rather than undiscovered:
 - [x] Report per-source metrics instead of a single email-dominated average
 - [x] Guard degenerate/short input instead of predicting from an empty vector
 - [x] API tests + model-quality regression tests, run in CI
-- [ ] Improve SMS recall (class weighting or source-aware sampling)
-- [ ] Replace digit stripping with a numeric placeholder to keep prize-amount cues
+- [x] Improve SMS recall (source-aware sample weighting: SMS F1 0.850 → 0.897)
+- [x] Replace digit stripping with a numeric placeholder to keep prize-amount cues

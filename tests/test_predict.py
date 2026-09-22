@@ -71,6 +71,19 @@ class PredictTest(unittest.TestCase):
         self.assertLessEqual(result["spam_probability"], 1.0)
         self.assertIn(result["confidence"], {"high", "medium", "low"})
         self.assertIsInstance(result["top_features"], list)
+        self.assertIsInstance(result["description"], str)
+
+    def test_description_is_a_readable_sentence(self):
+        """The UI shows this sentence instead of keyword chips."""
+        result = predict("win free money now", model_path=self.model_path)
+        description = result["description"]
+        self.assertIsInstance(description, str)
+        self.assertTrue(description.endswith("."))
+        self.assertIn("spam", description.lower())
+
+    def test_ham_description_reads_as_normal(self):
+        result = predict("how are you today", model_path=self.model_path)
+        self.assertIn("normal", result["description"].lower())
 
     def test_classifies_spam_message(self):
         result = predict("Congratulations! You won a free iPhone. Click now!", model_path=self.model_path)
@@ -207,6 +220,17 @@ class PredictInputGuardTest(unittest.TestCase):
         result = predict("win free money now", model_path=self.model_path)
         self.assertFalse(result["insufficient_text"])
         self.assertTrue(result["is_spam"])
+
+    def test_prize_amount_message_is_classified(self):
+        """The 'num' placeholder must not be mistaken for missing content."""
+        result = predict("you have won $1000000 in cash", model_path=self.model_path)
+        self.assertFalse(result["insufficient_text"])
+
+    def test_number_only_message_stays_insufficient(self):
+        """A digits-only message is placeholder tokens only, so it is still refused."""
+        result = predict("12345 67890", model_path=self.model_path)
+        self.assertTrue(result["insufficient_text"])
+        self.assertFalse(result["is_spam"])
 
 
 class ModelCachingTest(unittest.TestCase):

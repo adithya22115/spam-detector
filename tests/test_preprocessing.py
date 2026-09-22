@@ -26,8 +26,8 @@ class CleanTextTest(unittest.TestCase):
             "visit now",
         )
 
-    def test_removes_numbers_and_punctuation(self):
-        self.assertEqual(preprocessing.clean_text("Call 1800-FREE!! now!!"), "call free now")
+    def test_replaces_numbers_and_strips_punctuation(self):
+        self.assertEqual(preprocessing.clean_text("Call 1800-FREE!! now!!"), "call num free now")
 
     def test_collapses_whitespace(self):
         self.assertEqual(preprocessing.clean_text("  lots   of   spaces \n\t"), "lots of spaces")
@@ -111,7 +111,7 @@ class PreprocessDataTest(unittest.TestCase):
         df = pd.DataFrame({"label": [0], "message": ["Call 1800-FREE!! Now"]})
         out = preprocessing.preprocess_data(df)
         self.assertIn("cleaned_message", out.columns)
-        self.assertEqual(out["cleaned_message"].iloc[0], "call free now")
+        self.assertEqual(out["cleaned_message"].iloc[0], "call num free now")
 
     def test_does_not_mutate_input(self):
         df = pd.DataFrame({"label": [0], "message": ["Hello"]})
@@ -153,15 +153,31 @@ class LeetspeakDecodingTest(unittest.TestCase):
     def test_decodes_at_and_dollar(self):
         self.assertEqual(preprocessing.clean_text("c@sh and m0ney"), "cash and money")
 
-    def test_leaves_standalone_numbers_alone(self):
+    def test_standalone_numbers_become_placeholder(self):
         """Phone numbers and order ids must not be rewritten into letters."""
-        self.assertEqual(preprocessing.clean_text("order 12345 shipped"), "order shipped")
+        self.assertEqual(preprocessing.clean_text("order 12345 shipped"), "order num shipped")
 
     def test_leaves_plain_words_alone(self):
         self.assertEqual(preprocessing.clean_text("free money now"), "free money now")
 
-    def test_digits_only_becomes_empty(self):
-        self.assertEqual(preprocessing.clean_text("12345 67890"), "")
+    def test_digits_only_becomes_placeholder(self):
+        self.assertEqual(preprocessing.clean_text("12345 67890"), "num num")
+
+
+class NumericPlaceholderTest(unittest.TestCase):
+    """Numbers are normalised to a placeholder, not deleted, so prize amounts,
+    premium-rate numbers and order ids still leave a usable cue."""
+
+    def test_placeholder_constant_is_exported(self):
+        self.assertEqual(preprocessing.NUMBER_PLACEHOLDER, "num")
+
+    def test_prize_amount_keeps_a_numeric_cue(self):
+        self.assertEqual(
+            preprocessing.clean_text("You have won $1000000!"), "you have won num"
+        )
+
+    def test_phone_number_becomes_placeholder(self):
+        self.assertEqual(preprocessing.clean_text("Call 09061701461 now"), "call num now")
 
 
 class UnicodeNormalizationTest(unittest.TestCase):

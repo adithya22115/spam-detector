@@ -63,6 +63,13 @@ class HealthAndIndexTest(ApiTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"<html", response.data.lower())
 
+    def test_index_shows_description_not_keyword_chips(self):
+        """The UI renders a sentence description; keyword chips were removed."""
+        html = self.client.get("/").data.decode()
+        self.assertIn('id="description"', html)
+        self.assertNotIn('id="features"', html)
+        self.assertNotIn('class="chip', html)
+
     def test_unknown_route_returns_json_404(self):
         self.assertJsonError(self.client.get("/does-not-exist"), 404)
 
@@ -80,6 +87,8 @@ class PredictHappyPathTest(ApiTestCase):
         self.assertGreater(body["spam_probability"], 0.5)
         self.assertIn(body["confidence"], {"high", "medium", "low"})
         self.assertIsInstance(body["top_features"], list)
+        self.assertIsInstance(body["description"], str)
+        self.assertIn("spam", body["description"].lower())
         self.assertFalse(body["insufficient_text"])
 
     def test_classifies_ham(self):
@@ -87,7 +96,9 @@ class PredictHappyPathTest(ApiTestCase):
             "/predict", json={"message": "Hi team, the meeting is at 4pm today."}
         )
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(response.get_json()["is_spam"])
+        body = response.get_json()
+        self.assertFalse(body["is_spam"])
+        self.assertIn("normal", body["description"].lower())
 
     def test_accepts_json_without_content_type_header(self):
         """force=True keeps the endpoint tolerant of clients that omit the header."""

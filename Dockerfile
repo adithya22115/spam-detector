@@ -20,4 +20,5 @@ ENV FLASK_HOST=0.0.0.0 \
 
 EXPOSE 5000
 
-CMD ["python", "app/app.py"]
+# Serve through gunicorn rather than the Flask development server.
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app.app:app"]

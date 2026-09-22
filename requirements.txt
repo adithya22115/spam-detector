@@ -2,5 +2,6 @@ pandas
 scikit-learn
 joblib
 flask
+gunicorn
 matplotlib
 python-dotenv

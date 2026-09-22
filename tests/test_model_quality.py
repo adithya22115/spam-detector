@@ -28,13 +28,15 @@ from preprocessing import load_email_data, load_sms_data, preprocess_data  # noq
 
 MODEL_PATH = ROOT / "models" / "spam_model.pkl"
 
-# Deliberately set below the current scores (acc 0.981, f1 0.979, brier 0.014)
-# so they flag real regressions rather than tiny fluctuations.
+# Deliberately set below the current scores (acc 0.982, f1 0.980, brier 0.014)
+# so they flag real regressions rather than tiny fluctuations. SMS is the weak
+# half; source-weighted training lifted it from 0.850 to 0.897, so its floor is
+# pinned just below the new value to keep the gain from silently regressing.
 MIN_ACCURACY = 0.975
 MIN_F1_SPAM = 0.970
 MAX_BRIER = 0.030
 MIN_F1_SPAM_EMAIL = 0.975
-MIN_F1_SPAM_SMS = 0.820
+MIN_F1_SPAM_SMS = 0.880
 
 
 class ShippedModelQualityTest(unittest.TestCase):
@@ -82,7 +84,7 @@ class ShippedModelQualityTest(unittest.TestCase):
         self.assertGreaterEqual(f1, MIN_F1_SPAM_EMAIL, f"email spam F1 dropped to {f1:.4f}")
 
     def test_per_source_sms_f1(self):
-        """SMS is the weaker half (0.85); guard it so it cannot silently rot."""
+        """SMS is the weaker half (0.90); guard it so it cannot silently rot."""
         mask = self.source_test == "sms"
         f1 = f1_score(self.y_test[mask], self.y_pred[mask])
         self.assertGreaterEqual(f1, MIN_F1_SPAM_SMS, f"sms spam F1 dropped to {f1:.4f}")

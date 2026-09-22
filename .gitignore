@@ -1,17 +1,40 @@
 # Environment variables (may contain secrets)
 .env
+.env.*
+!.env.example
 
-# Datasets and generated artifacts
+# Datasets (re-download from the sources listed in README.md)
 data/raw/*.csv
 data/processed/*.csv
+
+# Model artifacts
+# The trained model IS required at runtime (Render/Docker loads it on startup),
+# so it is deliberately kept tracked and must be committed: git add models/spam_model.pkl
 models/*.pkl
+!models/spam_model.pkl
 models/transformer/
 models/transformer_checkpoints/
 
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
 .venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Logs and local run artifacts
+*.log
 
 # Jupyter
 .ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

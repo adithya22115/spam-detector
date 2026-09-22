@@ -98,6 +98,7 @@ def _internal_error(_exc):
 if __name__ == "__main__":
     app.run(
         host=os.getenv("FLASK_HOST", "0.0.0.0"),
-        port=int(os.getenv("FLASK_PORT", "5000")),
+        # Render and most PaaS hosts inject PORT; FLASK_PORT stays for local runs.
+        port=int(os.getenv("PORT") or os.getenv("FLASK_PORT", "5000")),
         debug=os.getenv("FLASK_DEBUG", "0") == "1",
     )

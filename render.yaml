@@ -1,0 +1,21 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# Deploy: push this repo to GitHub, then in Render choose
+#   New -> Blueprint -> select the repo.
+# Render installs requirements.txt, starts gunicorn, and polls /health.
+services:
+  - type: web
+    name: spam-detector
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT app.app:app
+    healthCheckPath: /health
+    envVars:
+      # Render injects PORT automatically; these mirror the local defaults.
+      - key: MODEL_PATH
+        value: models/spam_model.pkl
+      - key: MAX_MESSAGE_CHARS
+        value: "20000"
+      - key: FLASK_DEBUG
+        value: "0"
